@@ -5,6 +5,58 @@
     <meta charset="UTF-8">
     <title>MP3 to OGG Converter</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f9fc;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        input[type="file"] {
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #downloadLink {
+            display: block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #27ae60;
+            font-weight: bold;
+        }
+
         #loadingIndicator {
             display: none;
             position: fixed;
@@ -14,8 +66,9 @@
             background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 20px;
-            border-radius: 5px;
+            border-radius: 8px;
             z-index: 1000;
+            text-align: center;
         }
 
         #loadingIndicator.show {
@@ -45,9 +98,14 @@
 </head>
 
 <body>
-    <input type="file" id="mp3Input" accept="audio/mpeg">
-    <button onclick="convert()">Convert to OGG</button>
-    <a id="downloadLink" style="display: none;">Download OGG</a>
+    <div class="container">
+        <h1>MP3 to OGG Converter</h1>
+        <input type="file" id="mp3Input" accept="audio/mpeg"
+            style="padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; transition: background-color 0.3s ease;">
+        <button onclick="convert()">Convert to OGG</button>
+        <a id="downloadLink" style="display: none;">Download OGG</a>
+    </div>
+
     <div id="loadingIndicator">
         <div class="spinner"></div>
         <p>Converting audio...</p>
@@ -72,9 +130,11 @@
                 downloadLink.download = 'converted_audio.ogg';
                 downloadLink.style.display = 'block';
                 downloadLink.textContent = 'Download OGG';
-                loadingIndicator.classList.remove('show');
+                downloadLink.style.textDecoration = 'underline';
             } catch (error) {
                 alert(`Error: ${error.message}`);
+            } finally {
+                document.getElementById('loadingIndicator').classList.remove('show');
             }
         };
     </script>
