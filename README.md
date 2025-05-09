@@ -1,2 +1,2 @@
 # JSModules
-Cool JS modules I made.
+A small collection of useful JavaScript modules for the web.
