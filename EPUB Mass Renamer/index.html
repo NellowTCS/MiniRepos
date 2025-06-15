@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+      <meta charset="UTF-8" />
+      <title>EPUB Renamer</title>
+      <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.88/dist/epub.min.js"></script>
+      <style>
+          body {
+          font-family: 'Segoe UI', sans-serif;
+          background: linear-gradient(90deg, #2196F3, #21CBF3);
+          color: #111;
+          margin: 0;
+          padding: 20px;
+          }
+          h1 {
+          margin-bottom: 1rem;
+          }
+          input[type="file"] {
+          margin-bottom: 1rem;
+          }
+          button {
+          background: #fff;
+          color: #2196F3;
+          border: none;
+          border-radius: 8px;
+          padding: 0.6rem 1.2rem;
+          cursor: pointer;
+          margin-bottom: 1rem;
+          }
+          table {
+          width: 100%;
+          border-spacing: 0 0.5rem;
+          }
+          th,
+          td {
+          background: rgba(255, 255, 255, 0.8);
+          padding: 0.75rem;
+          border-radius: 6px;
+          }
+          .status {
+          font-size: 0.9rem;
+          }
+          .error {
+          color: #d32f2f;
+          }
+          .done {
+          color: #388e3c;
+          }
+      </style>
+  </head>
+  <body>
+      <h1>EPUB Mass Renamer</h1>
+      <input type="file" id="epubInput" multiple accept=".epub" />
+      <br />
+      <button id="processBtn">Rename & Download</button>
+      <table id="fileTable" style="display: none">
+          <thead>
+              <tr>
+                  <th>Original</th>
+                  <th>New Name</th>
+                  <th>Status</th>
+              </tr>
+          </thead>
+          <tbody id="fileList"></tbody>
+      </table>
+      <script>
+          const input = document.getElementById("epubInput");
+          const fileTable = document.getElementById("fileTable");
+          const fileList = document.getElementById("fileList");
+          const processBtn = document.getElementById("processBtn");
+          let files = [];
+          input.addEventListener("change", (e) => {
+          files = Array.from(e.target.files);
+          fileList.innerHTML = "";
+          fileTable.style.display = "table";
+          files.forEach((f) => {
+          const tr = document.createElement("tr");
+          tr.dataset.name = f.name;
+          tr.innerHTML = `<td>${f.name}</td><td>…</td><td class="status">ready</td>`;
+          fileList.appendChild(tr);
+          });
+          });
+          processBtn.addEventListener("click", async () => {
+          for (const file of files) {
+          const row = fileList.querySelector(`tr[data-name="${file.name}"]`);
+          const newCell = row.children[1];
+          const statusCell = row.children[2];
+          statusCell.textContent = "reading…";
+          try {
+          const buf = await file.arrayBuffer();
+          console.log(`Reading ${file.name} - byteLength:`, buf.byteLength);
+          if (!buf || buf.byteLength === 0) {
+          throw new Error("Empty or invalid file buffer");
+          }
+          const book = ePub(buf);
+          const meta = await timeout(book.loaded.metadata, 4000);
+          const title = sanitize(meta.title || "Untitled");
+          const creator = sanitize(meta.creator || "Unknown");
+          const newName = `${title} | ${creator}.epub`;
+          newCell.textContent = newName;
+          const blob = new Blob([buf], { type: "application/epub+zip" });
+          await delay(300);
+          downloadBlob(blob, newName);
+          statusCell.textContent = "done";
+          statusCell.classList.add("done");
+          } catch (err) {
+          console.warn(`Skipping ${file.name}`, err);
+          newCell.textContent = "—";
+          statusCell.textContent = "invalid epub";
+          statusCell.classList.add("error");
+          }
+          }
+          });
+          function sanitize(txt) {
+          return txt.replace(/[\/\\?%*:|"<>]/g, "-").trim();
+          }
+          function downloadBlob(b, filename) {
+          const a = document.createElement("a");
+          const url = URL.createObjectURL(b);
+          console.log("Downloading:", filename, url, "blob size:", b.size);
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+          URL.revokeObjectURL(url);
+          a.remove();
+          }, 100);
+          }
+          function delay(ms) {
+          return new Promise((r) => setTimeout(r, ms));
+          }
+          function timeout(p, ms) {
+          return new Promise((res, rej) => {
+          const t = setTimeout(() => rej("timeout"), ms);
+          p.then((v) => {
+          clearTimeout(t);
+          res(v);
+          }).catch((err) => {
+          clearTimeout(t);
+          rej(err);
+          });
+          });
+          }
+      </script>
+  </body>
+</html>
