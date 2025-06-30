@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AnimatedCoverArtPlayer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg,#00bfff,#1e3a8a);
+      color: #333;
+      margin: 2rem auto;
+      max-width: 700px;
+      text-align: center;
+    }
+    #player-section {
+      margin-bottom: 2rem;
+    }
+    #metadata {
+      margin-bottom: 1rem;
+      font-weight: 600;
+      font-size: 1.2rem;
+      color: #555;
+    }
+    #cover {
+      max-width: 300px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.15);
+      margin-bottom: 1rem;
+      display: none;
+    }
+    audio {
+      width: 100%;
+      max-width: 500px;
+      outline: none;
+    }
+    h1 {
+      margin-bottom: 1rem;
+      color: white;
+    }
+    section {
+      margin-top: 2rem;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      text-align: left;
+      color: lightblue;
+    }
+    a {
+      color: #0ec6c9;
+    }
+    button {
+      font-size: 1rem;
+      margin: 1rem 0;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid #999;
+      background: #fff;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background: #cceeff;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Animated Cover Art Player</h1>
+
+  <div id="player-section">
+    <div id="metadata">No file selected</div>
+    <img id="cover" />
+    <audio id="player" controls></audio>
+  </div>
+
+  <input type="file" id="audioFile" accept=".mp3" />
+  <br />
+  <button id="loadExample">Load Example: Monody.mp3</button>
+
+  <section>
+    <h2>How this works and how to do it:</h2>
+    <p>
+      This example shows how to embed an animated <code>WebP</code> image as the cover art inside an MP3’s
+      ID3 tags, so it can be displayed and animated in compatible players like <i>(soon)</i> <strong>HTMLPlayer</strong>.
+    </p>
+    <ol>
+      <li>Obtain your MP3 audio file (for example, <code>Monody.mp3</code> by TheFatRat).</li>
+      <li>Prepare your animated <code>WebP</code> cover art file (<code>cover.webp</code>).</li>
+      <li>
+        Use a tag editor that supports embedding WebP images (I recommend using, <a href="https://banger.show/tools/mp3-tag-editor/" target="_blank" rel="noopener">Banger.Show's Online ID3 Tag Editor</a>):
+        <ul>
+          <li>Open the MP3 in the tag editor.</li>
+          <li>Replace the cover art with your animated WebP file.</li>
+          <li>Save the file with the updated tags.</li>
+        </ul>
+      </li>
+      <li>
+        (Optional) To verify, use <code>ffmpeg</code> to extract the cover:
+        <pre><code>ffmpeg -i yourfile.mp3 -an -vcodec copy cover.webp</code></pre>
+      </li>
+    </ol>
+    <p>
+      Once embedded, upload your MP3 to the player above, and if your browser supports animated WebP,
+      the cover art will display and animate synced with playback.
+    </p>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+  <script>
+    const audioInput = document.getElementById('audioFile');
+    const audioPlayer = document.getElementById('player');
+    const coverImage = document.getElementById('cover');
+    const metadataDiv = document.getElementById('metadata');
+    const loadExampleBtn = document.getElementById('loadExample');
+
+    let pendingCoverBlobUrl = null;
+    let currentCoverBlobUrl = null;
+
+    function clearCover() {
+      if (pendingCoverBlobUrl) URL.revokeObjectURL(pendingCoverBlobUrl);
+      if (currentCoverBlobUrl) URL.revokeObjectURL(currentCoverBlobUrl);
+      pendingCoverBlobUrl = null;
+      currentCoverBlobUrl = null;
+      coverImage.style.display = 'none';
+      coverImage.src = '';
+    }
+
+    function loadFile(file) {
+      if (!file) return;
+      clearCover();
+
+      const audioURL = URL.createObjectURL(file);
+      audioPlayer.src = audioURL;
+      audioPlayer.load();
+
+      metadataDiv.textContent = 'Loading metadata...';
+
+      jsmediatags.read(file, {
+        onSuccess: function(tag) {
+          const tags = tag.tags;
+          const title = tags.title || null;
+          const artist = tags.artist || null;
+
+          metadataDiv.textContent = (title || artist)
+            ? `${title || 'Unknown Title'} — ${artist || 'Unknown Artist'}`
+            : file.name.replace(/\.[^/.]+$/, '');
+
+          const picture = tags.picture;
+          if (picture) {
+            const { data, format } = picture;
+            const byteArray = new Uint8Array(data);
+            const blob = new Blob([byteArray], { type: format });
+            pendingCoverBlobUrl = URL.createObjectURL(blob);
+          }
+        },
+        onError: function(err) {
+          metadataDiv.textContent = file.name.replace(/\.[^/.]+$/, '');
+          console.warn("Metadata error:", err);
+        }
+      });
+    }
+
+    audioInput.addEventListener('change', () => {
+      loadFile(audioInput.files[0]);
+    });
+
+    audioPlayer.addEventListener('play', () => {
+      if (pendingCoverBlobUrl) {
+        if (currentCoverBlobUrl) URL.revokeObjectURL(currentCoverBlobUrl);
+        coverImage.style.display = 'none';
+        coverImage.src = '';
+        setTimeout(() => {
+          coverImage.src = pendingCoverBlobUrl;
+          coverImage.style.display = 'block';
+          currentCoverBlobUrl = pendingCoverBlobUrl;
+        }, 10);
+      }
+    });
+
+    function loadExampleLocal() {
+      clearCover();
+      const fileUrl = 'monody.mp3'; // relative local file
+
+      audioPlayer.src = fileUrl;
+      audioPlayer.load();
+
+      metadataDiv.textContent = 'Loading metadata...';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', fileUrl, true);
+      xhr.responseType = 'blob';
+      xhr.onload = function() {
+        if (xhr.status === 200 || xhr.status === 0) {
+          const blob = xhr.response;
+          const file = new File([blob], 'monody.mp3', { type: 'audio/mpeg' });
+          jsmediatags.read(file, {
+            onSuccess: function(tag) {
+              const tags = tag.tags;
+              const title = tags.title || null;
+              const artist = tags.artist || null;
+
+              metadataDiv.textContent = (title || artist)
+                ? `${title || 'Unknown Title'} — ${artist || 'Unknown Artist'}`
+                : 'monody.mp3';
+
+              const picture = tags.picture;
+              if (picture) {
+                const { data, format } = picture;
+                const byteArray = new Uint8Array(data);
+                const blob = new Blob([byteArray], { type: format });
+                pendingCoverBlobUrl = URL.createObjectURL(blob);
+              }
+            },
+            onError: function(err) {
+              metadataDiv.textContent = 'monody.mp3';
+              console.warn("Metadata error:", err);
+            }
+          });
+        } else {
+          alert('Failed to load example file locally');
+        }
+      };
+      xhr.onerror = function() {
+        alert('Failed to load example file locally');
+      };
+      xhr.send();
+    }
+
+    loadExampleBtn.addEventListener('click', () => {
+      loadExampleLocal();
+    });
+  </script>
+</body>
+</html>
