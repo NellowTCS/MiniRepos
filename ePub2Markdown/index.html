@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<title>ePub2Markdown</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+	<style>
+	body {
+		font-family: Arial, sans-serif;
+		margin: 0;
+		padding: 2rem;
+		max-width: 1200px;
+		margin: 0 auto;
+		background: linear-gradient(135deg, #2196F3, #21CBF3);
+		min-height: 100vh;
+		color: white;
+	}
+
+	textarea {
+		width: calc(100% - 2rem);
+		height: 400px;
+		margin-top: 1rem;
+		font-family: 'Courier New', monospace;
+		font-size: 12px;
+		background: rgba(255, 255, 255, 0.95);
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		border-radius: 8px;
+		padding: 1rem;
+		color: #333;
+		box-sizing: border-box;
+	}
+
+	#loading {
+		font-weight: bold;
+		margin-top: 1rem;
+		color: #fff;
+		font-size: 18px;
+	}
+
+	#logs {
+		width: calc(100% - 1rem);
+		height: 200px;
+		margin-top: 1rem;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		padding: 0.5rem;
+		overflow-y: auto;
+		font-family: monospace;
+		background: rgba(255, 255, 255, 0.1);
+		font-size: 12px;
+		border-radius: 8px;
+		backdrop-filter: blur(10px);
+		box-sizing: border-box;
+	}
+
+	#progressContainer {
+		width: 100%;
+		background: rgba(255, 255, 255, 0.2);
+		height: 20px;
+		margin-top: 1rem;
+		border-radius: 10px;
+		overflow: hidden;
+	}
+
+	#progressBar {
+		width: 0%;
+		height: 100%;
+		background: linear-gradient(90deg, #4caf50, #45a049);
+		transition: width 0.3s;
+		border-radius: 10px;
+	}
+
+	.file-input-container {
+		margin: 1rem 0;
+		padding: 2rem;
+		border: 2px dashed rgba(255, 255, 255, 0.5);
+		border-radius: 12px;
+		text-align: center;
+		cursor: pointer;
+		transition: all 0.3s;
+		background: rgba(255, 255, 255, 0.1);
+		backdrop-filter: blur(10px);
+	}
+
+	.file-input-container:hover {
+		border-color: rgba(255, 255, 255, 0.8);
+		background: rgba(255, 255, 255, 0.2);
+		transform: translateY(-2px);
+	}
+
+	#fileInput {
+		margin: 0.5rem 0;
+		background: rgba(255, 255, 255, 0.2);
+		color: white;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		border-radius: 6px;
+		padding: 8px;
+	}
+
+	#fileInput::file-selector-button {
+		background: rgba(255, 255, 255, 0.3);
+		color: white;
+		border: none;
+		padding: 8px 12px;
+		border-radius: 4px;
+		margin-right: 10px;
+		cursor: pointer;
+	}
+
+	button {
+		background: linear-gradient(90deg, #4caf50, #45a049);
+		color: white;
+		border: none;
+		padding: 12px 20px;
+		border-radius: 8px;
+		cursor: pointer;
+		margin: 5px;
+		font-weight: 600;
+		transition: all 0.3s;
+		box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+	}
+
+	button:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+	}
+
+	h1 {
+		text-align: center;
+		font-size: 2.5rem;
+		margin-bottom: 2rem;
+		text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+	}
+	</style>
+</head>
+
+<body>
+	<h1>ePub → Markdown Converter</h1>
+	<div class="file-input-container">
+		<p>Select an ePub file to convert to Markdown</p>
+		<input type="file" id="fileInput" accept=".epub" />
+		<button onclick="document.getElementById('output').value = ''; document.getElementById('logs').innerHTML = '';"> Clear Output </button>
+		<button onclick="document.getElementById('fileInput').value = ''; document.getElementById('fileInput').click();"> Convert Another ePub </button>
+	</div>
+	<div id="loading" style="display:none;">Processing...</div>
+	<div id="progressContainer">
+		<div id="progressBar"></div>
+	</div>
+	<div id="logs"></div>
+	<textarea id="output" placeholder="Markdown output will appear here..."></textarea>
+	<script>
+	const logElement = document.getElementById('logs');
+	const loading = document.getElementById('loading');
+	const output = document.getElementById('output');
+	const progressBar = document.getElementById('progressBar');
+
+	function log(msg) {
+		console.log(msg);
+		const timestamp = new Date().toLocaleTimeString();
+		logElement.innerHTML += `[${timestamp}] ${msg}<br>`;
+		logElement.scrollTop = logElement.scrollHeight;
+	}
+
+	function updateProgress(current, total) {
+		const percent = Math.round((current / total) * 100);
+		progressBar.style.width = percent + '%';
+	}
+
+	function cleanText(text) {
+		// Remove excessive whitespace and normalize line breaks due to some weird stuff
+		return text.replace(/\s+/g, ' ').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+	}
+
+	function htmlToMarkdown(html) {
+		if(!html) return '';
+		// Create a temporary div to parse HTML properly
+		const tempDiv = document.createElement('div');
+		tempDiv.innerHTML = html;
+		// Remove script and style tags
+		const scripts = tempDiv.querySelectorAll('script, style');
+		scripts.forEach(el => el.remove());
+		let markdown = tempDiv.innerHTML;
+		// Convert headers
+		markdown = markdown.replace(/<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi, (match, level, content) => {
+			const hashes = '#'.repeat(parseInt(level));
+			return `\n\n${hashes} ${cleanText(content.replace(/<[^>]*>/g, ''))}\n\n`;
+		});
+		// Convert paragraphs
+		markdown = markdown.replace(/<p[^>]*>(.*?)<\/p>/gi, (match, content) => {
+			const cleanContent = content.replace(/<br\s*\/?>/gi, '\n');
+			return `\n${cleanContent}\n`;
+		});
+		// Convert line breaks
+		markdown = markdown.replace(/<br\s*\/?>/gi, '\n');
+		// Convert bold
+		markdown = markdown.replace(/<(b|strong)[^>]*>(.*?)<\/(b|strong)>/gi, '**$2**');
+		// Convert italic
+		markdown = markdown.replace(/<(i|em)[^>]*>(.*?)<\/(i|em)>/gi, '_$2_');
+		// Convert links
+		markdown = markdown.replace(/<a[^>]*href=["'](.*?)["'][^>]*>(.*?)<\/a>/gi, '[$2]($1)');
+		// Convert lists
+		markdown = markdown.replace(/<ul[^>]*>(.*?)<\/ul>/gi, (match, content) => {
+			const items = content.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+			return `\n${items}\n`;
+		});
+		markdown = markdown.replace(/<ol[^>]*>(.*?)<\/ol>/gi, (match, content) => {
+			let counter = 1;
+			const items = content.replace(/<li[^>]*>(.*?)<\/li>/gi, () => `${counter++}. $1\n`);
+			return `\n${items}\n`;
+		});
+		// Convert blockquotes
+		markdown = markdown.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '\n> $1\n');
+		// Convert div and span (just extract content b/c i'm lazy)
+		markdown = markdown.replace(/<(div|span)[^>]*>(.*?)<\/(div|span)>/gi, '$2');
+		// Remove remaining HTML tags
+		markdown = markdown.replace(/<[^>]*>/g, '');
+		// Clean up HTML entities
+		markdown = markdown.replace(/&nbsp;/g, ' ');
+		markdown = markdown.replace(/&amp;/g, '&');
+		markdown = markdown.replace(/&lt;/g, '<');
+		markdown = markdown.replace(/&gt;/g, '>');
+		markdown = markdown.replace(/&quot;/g, '"');
+		markdown = markdown.replace(/&#39;/g, "'");
+		// Clean up excessive whitespace (again b/c weird stuff)
+		markdown = markdown.replace(/\n\s*\n\s*\n/g, '\n\n');
+		markdown = markdown.replace(/^\s+|\s+$/g, '');
+		return markdown;
+	}
+	async function processEpub(file) {
+		logElement.innerHTML = '';
+		output.value = '';
+		progressBar.style.width = '0%';
+		loading.style.display = 'block';
+		log(`Starting to process: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+		try {
+			// Load the epub file using JSZip
+			const zip = await JSZip.loadAsync(file);
+			log('ePub file loaded successfully');
+			// Find and parse the OPF file (contains book structure)
+			let opfFile = null;
+			let opfContent = '';
+			// Look for META-INF/container.xml to find OPF location
+			const containerFile = zip.file('META-INF/container.xml');
+			if(containerFile) {
+				const containerXml = await containerFile.async('text');
+				const opfMatch = containerXml.match(/full-path="([^"]+)"/);
+				if(opfMatch) {
+					opfFile = zip.file(opfMatch[1]);
+					log(`Found OPF file: ${opfMatch[1]}`);
+				}
+			}
+			if(!opfFile) {
+				// Fallback: look for .opf files
+				const opfFiles = Object.keys(zip.files).filter(name => name.endsWith('.opf'));
+				if(opfFiles.length > 0) {
+					opfFile = zip.file(opfFiles[0]);
+					log(`Found OPF file (fallback): ${opfFiles[0]}`);
+				}
+			}
+			if(!opfFile) {
+				throw new Error('Could not find OPF file in ePub');
+			}
+			opfContent = await opfFile.async('text');
+			log('OPF file loaded');
+			// Parse spine order from OPF
+			const spineMatches = [...opfContent.matchAll(/<itemref[^>]*idref="([^"]+)"/g)];
+			log(`Found ${spineMatches.length} spine items`);
+			// Get all manifest items with more flexible regex
+			const manifestItems = new Map();
+			// Try multiple regex patterns to handle different OPF formats
+			const itemRegexes = [/<item[^>]*id=["']([^"']+)["'][^>]*href=["']([^"']+)["'][^>]*media-type=["']([^"']+)["'][^>]*\/?>/g, /<item[^>]*href=["']([^"']+)["'][^>]*id=["']([^"']+)["'][^>]*media-type=["']([^"']+)["'][^>]*\/?>/g, /<item[^>]*media-type=["']([^"']+)["'][^>]*id=["']([^"']+)["'][^>]*href=["']([^"']+)["'][^>]*\/?>/g];
+			// First pattern: id, href, media-type
+			let manifestMatches = [...opfContent.matchAll(itemRegexes[0])];
+			manifestMatches.forEach(match => {
+				manifestItems.set(match[1], {
+					href: match[2],
+					mediaType: match[3]
+				});
+			});
+			// Second pattern: href, id, media-type
+			if(manifestItems.size === 0) {
+				manifestMatches = [...opfContent.matchAll(itemRegexes[1])];
+				manifestMatches.forEach(match => {
+					manifestItems.set(match[2], {
+						href: match[1],
+						mediaType: match[3]
+					});
+				});
+			}
+			// Third pattern: media-type, id, href
+			if(manifestItems.size === 0) {
+				manifestMatches = [...opfContent.matchAll(itemRegexes[2])];
+				manifestMatches.forEach(match => {
+					manifestItems.set(match[2], {
+						href: match[3],
+						mediaType: match[1]
+					});
+				});
+			}
+			// Debug: show first few lines of OPF to understand structure (ePubs need to have better standardization :/)
+			if(manifestItems.size === 0) {
+				log('No manifest items found. OPF structure:');
+				const opfLines = opfContent.split('\n').slice(0, 20);
+				opfLines.forEach((line, i) => {
+					if(line.includes('item') || line.includes('manifest')) {
+						log(`Line ${i+1}: ${line.trim()}`);
+					}
+				});
+			}
+			log(`Found ${manifestItems.size} manifest items`);
+			// Process chapters in spine order
+			const markdownChapters = [];
+			const opfDir = opfFile.name.substring(0, opfFile.name.lastIndexOf('/') + 1);
+			for(let i = 0; i < spineMatches.length; i++) {
+				const idref = spineMatches[i][1];
+				const manifestItem = manifestItems.get(idref);
+				if(!manifestItem) {
+					log(`⚠ Skipping ${idref}: not found in manifest`);
+					continue;
+				}
+				if(!manifestItem.mediaType.includes('html') && !manifestItem.mediaType.includes('xhtml')) {
+					log(`⚠ Skipping ${idref}: not HTML content (${manifestItem.mediaType})`);
+					continue;
+				}
+				const chapterPath = opfDir + manifestItem.href;
+				const chapterFile = zip.file(chapterPath);
+				if(!chapterFile) {
+					log(`⚠ Chapter file not found: ${chapterPath}`);
+					continue;
+				}
+				try {
+					const chapterHtml = await chapterFile.async('text');
+					log(`Processing chapter ${i + 1}/${spineMatches.length}: ${manifestItem.href}`);
+					const markdown = htmlToMarkdown(chapterHtml);
+					if(markdown.trim()) {
+						markdownChapters.push(markdown);
+						log(`Chapter ${i + 1} converted (${markdown.length} chars)`);
+					} else {
+						log(`⚠ Chapter ${i + 1} produced empty content`);
+					}
+				} catch (err) {
+					log(`Error processing chapter ${i + 1}: ${err.message}`);
+				}
+				updateProgress(i + 1, spineMatches.length);
+				await new Promise(resolve => setTimeout(resolve, 10));
+			}
+			// Combine all chapters
+			const finalMarkdown = markdownChapters.join('\n\n---\n\n');
+			output.value = finalMarkdown;
+			log(`Conversion complete! Generated ${finalMarkdown.length} characters of markdown from ${markdownChapters.length} chapters`);
+		} catch (error) {
+			log(`Error: ${error.message}`);
+			console.error('Full error:', error);
+		} finally {
+			loading.style.display = 'none';
+			updateProgress(100, 100);
+		}
+	}
+	document.getElementById('fileInput').addEventListener('change', (e) => {
+		const file = e.target.files[0];
+		if(file) {
+			if(!file.name.toLowerCase().endsWith('.epub')) {
+				log('Please select a valid .epub file');
+				return;
+			}
+			processEpub(file);
+		}
+	});
+	// Drag and drop support
+	const container = document.querySelector('.file-input-container');
+	container.addEventListener('dragover', (e) => {
+		e.preventDefault();
+		container.style.borderColor = '#4caf50';
+	});
+	container.addEventListener('dragleave', () => {
+		container.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+	});
+	container.addEventListener('drop', (e) => {
+		e.preventDefault();
+		container.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+		const files = e.dataTransfer.files;
+		if(files.length > 0) {
+			document.getElementById('fileInput').files = files;
+			processEpub(files[0]);
+		}
+	});
+	</script>
+</body>
+
+</html>
