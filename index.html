@@ -1,122 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <title>JSModules - JavaScript Modules Collection</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f7f9fc;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
 
-<head>
-  <meta charset="UTF-8">
-  <link rel="manifest" href="manifest.json">
-  <link rel="shortcut icon" type="image/x-icon" href="favicon.png">
-  <link rel="apple-touch-icon" href="/favicon.png">
-  <title>JSModules - JavaScript Modules Collection</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f7f9fc;
-      color: #333;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-    }
+      .container {
+        background: white;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 600px;
+        width: 90%;
+      }
 
-    .container {
-      background: white;
-      padding: 40px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      text-align: center;
-      max-width: 600px;
-      width: 90%;
-    }
+      h1 {
+        color: #3498db;
+        margin-bottom: 10px;
+      }
 
-    h1 {
-      color: #3498db;
-      margin-bottom: 10px;
-    }
+      p {
+        font-size: 1rem;
+        margin-bottom: 30px;
+        color: #555;
+      }
 
-    p {
-      font-size: 1rem;
-      margin-bottom: 30px;
-      color: #555;
-    }
+      a.module-link {
+        display: inline-block;
+        background-color: #3498db;
+        color: white;
+        text-decoration: none;
+        padding: 12px;
+        margin: 0 12px 12px 0;
+        /* top right bottom left */
+        border-radius: 8px;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+      }
 
-    a.module-link {
-      display: inline-block;
-      background-color: #3498db;
-      color: white;
-      text-decoration: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-weight: bold;
-      transition: background-color 0.3s ease;
-    }
+      a.module-link:hover {
+        background-color: #2980b9;
+      }
 
-    a.module-link:hover {
-      background-color: #2980b9;
-    }
-
-    footer {
-      margin-top: 40px;
-      font-size: 0.9rem;
-      color: #999;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="container">
-    <h1>JSModules</h1>
-    <p>A small collection of useful JavaScript modules for the web.</p><br>
-    <button id="install-button" hidden>Install App</button><br>
-    <a class="module-link" href="./mp3toOGGConverter/index.html">MP3 to OGG Converter</a><br>
-    <a class="module-link" href="./ePub Mass Renamer/index.html">ePub Mass Renamer</a><br>
-    <a class="module-link" href="./ACAPlayer/index.html">AnimatedCoverArtPlayer</a><br>
-    <a class="module-link" href="./ePub2Markdown/index.html">ePub2Markdown</a><br>
-
-    <footer>
-      <p>NellowTCS</p>
-    </footer>
-  </div>
-</body>
+      footer {
+        margin-top: 40px;
+        font-size: 0.9rem;
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>JSModules</h1>
+      <p>A small collection of useful JavaScript modules for the web.</p>
+      <br />
+      <button id="install-button" hidden>Install App</button>
+      <br />
+      <a class="module-link" href="./mp3toOGGConverter/index.html">MP3 to OGG Converter</a>
+      <br />
+      <a class="module-link" href="./ePub Mass Renamer/index.html">ePub Mass Renamer</a>
+      <br />
+      <a class="module-link" href="./ACAPlayer/index.html">AnimatedCoverArtPlayer</a>
+      <br />
+      <a class="module-link" href="./ePub2Markdown/index.html">ePub2Markdown</a>
+      <br />
+      <footer>
+        <p>NellowTCS</p>
+      </footer>
+    </div>
+  </body>
   <script>
-      document.addEventListener("DOMContentLoaded", function() {
-          // Register the service worker
-          if ("serviceWorker" in navigator) {
-              navigator.serviceWorker.register("service-worker.js");
-          }
-  
-          let deferredPrompt;
-          const installButton = document.getElementById("install-button");
-  
-          // Listen for the install prompt
-          window.addEventListener("beforeinstallprompt", (e) => {
-              e.preventDefault();
-              deferredPrompt = e;
-              installButton.hidden = false;
-          });
-  
-          // Handle install button click
-          installButton.addEventListener("click", async () => {
-              const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-  
-              if (isStandalone) {
-                  console.log("App is already installed");
-                  return;
-              }
-  
-              if (deferredPrompt) {
-                  deferredPrompt.prompt();
-                  const { outcome } = await deferredPrompt.userChoice;
-                  deferredPrompt = null;
-                  console.log(outcome === "accepted" ? "User accepted install prompt" : "User dismissed install prompt");
-              } else {
-                  if (window.matchMedia("(display-mode: browser)").matches) {
-                      window.location.assign("chrome://apps/");
-                  }
-              }
-          });
+    document.addEventListener("DOMContentLoaded", function() {
+      // Register the service worker
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("service-worker.js");
+      }
+      let deferredPrompt;
+      const installButton = document.getElementById("install-button");
+      // Listen for the install prompt
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installButton.hidden = false;
       });
+      // Handle install button click
+      installButton.addEventListener("click", async () => {
+        const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+        if (isStandalone) {
+          console.log("App is already installed");
+          return;
+        }
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const {
+            outcome
+          } = await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          console.log(outcome === "accepted" ? "User accepted install prompt" : "User dismissed install prompt");
+        } else {
+          if (window.matchMedia("(display-mode: browser)").matches) {
+            window.location.assign("chrome://apps/");
+          }
+        }
+      });
+    });
   </script>
-
 </html>
