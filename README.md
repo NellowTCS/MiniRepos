@@ -1,2 +1,2 @@
-# JSModules
-A small collection of useful JavaScript modules for the web.
+# MiniRepos
+Smaller projects that don't need their own repositories.
