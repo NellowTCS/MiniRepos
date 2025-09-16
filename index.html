@@ -5,7 +5,7 @@
     <link rel="manifest" href="manifest.json" />
     <link rel="shortcut icon" type="image/x-icon" href="favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <title>JSModules - JavaScript Modules Collection</title>
+    <title>MiniRepos</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -47,7 +47,6 @@
         text-decoration: none;
         padding: 12px;
         margin: 0 12px 12px 0;
-        /* top right bottom left */
         border-radius: 8px;
         font-weight: bold;
         transition: background-color 0.3s ease;
@@ -66,8 +65,8 @@
   </head>
   <body>
     <div class="container">
-      <h1>JSModules</h1>
-      <p>A small collection of useful JavaScript modules for the web.</p>
+      <h1>MiniRepos</h1>
+      <p>A bunch of tools and ideas and stuff I made that isn't big enough for a standalone GitHub repository.</p>
       <br />
       <button id="install-button" hidden>Install App</button>
       <br />
@@ -86,19 +85,18 @@
   </body>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
-      // Register the service worker
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("service-worker.js");
       }
       let deferredPrompt;
       const installButton = document.getElementById("install-button");
-      // Listen for the install prompt
+
       window.addEventListener("beforeinstallprompt", (e) => {
         e.preventDefault();
         deferredPrompt = e;
         installButton.hidden = false;
       });
-      // Handle install button click
+
       installButton.addEventListener("click", async () => {
         const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
         if (isStandalone) {
@@ -107,9 +105,7 @@
         }
         if (deferredPrompt) {
           deferredPrompt.prompt();
-          const {
-            outcome
-          } = await deferredPrompt.userChoice;
+          const { outcome } = await deferredPrompt.userChoice;
           deferredPrompt = null;
           console.log(outcome === "accepted" ? "User accepted install prompt" : "User dismissed install prompt");
         } else {
