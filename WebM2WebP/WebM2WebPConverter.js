@@ -49,26 +49,20 @@ function loadScript(src) {
  * @returns {Promise<Object>} A promise that resolves with the configured ffmpeg instance.
  */
 async function ensureFFmpeg() {
-    if (!window.FFmpeg) {
-        await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js');
+    if (!window.FFmpegWASM) {
+        await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js');
     }
 
-    if (!window.FFmpeg) {
+    if (!window.FFmpegWASM) {
         throw new Error('Failed to load ffmpeg library');
     }
 
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: true });
+    const { FFmpeg } = FFmpegWASM;
+    const ffmpeg = new FFmpeg();
 
-    ffmpeg.setProgress(({ ratio }) => {
-        // Optional: Update progress if needed
-    });
+    await ffmpeg.load();
 
-    if (!ffmpeg.isLoaded()) {
-        await ffmpeg.load();
-    }
-
-    return { ffmpeg, fetchFile };
+    return { ffmpeg };
 }
 
 /**
@@ -93,13 +87,13 @@ async function convertWebmToWebp(webmFile, options = {}) {
     try {
         showLoading();
 
-        const { ffmpeg, fetchFile } = await ensureFFmpeg();
+        const { ffmpeg } = await ensureFFmpeg();
 
         // Write input file
-        ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmFile));
+        ffmpeg.writeFile('input.webm', new Uint8Array(await webmFile.arrayBuffer()));
 
         // Convert to animated WebP
-        await ffmpeg.run(
+        await ffmpeg.exec([
             '-i', 'input.webm',
             '-vf', `scale=${scaleWidth}:-1:flags=lanczos,fps=${fps}`,
             '-loop', '0',
@@ -107,11 +101,11 @@ async function convertWebmToWebp(webmFile, options = {}) {
             '-lossless', '0',
             '-quality', `${quality}`,
             'output.webp'
-        );
+        ]);
 
         // Read output
-        const output = ffmpeg.FS('readFile', 'output.webp');
-        return new Blob([output.buffer], { type: 'image/webp' });
+        const output = await ffmpeg.readFile('output.webp');
+        return new Blob([output], { type: 'image/webp' });
     } catch (error) {
         console.error('Conversion failed:', error);
         throw error;
