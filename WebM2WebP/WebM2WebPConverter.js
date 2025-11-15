@@ -6,8 +6,7 @@
 
 /**
  * Shows the loading indicator
- * @private
- */
+ * @private */
 function showLoading() {
     const loadingIndicator = document.getElementById('loadingIndicator');
     if (loadingIndicator) {
@@ -17,8 +16,7 @@ function showLoading() {
 
 /**
  * Hides the loading indicator
- * @private
- */
+ * @private */
 function hideLoading() {
     const loadingIndicator = document.getElementById('loadingIndicator');
     if (loadingIndicator) {
@@ -27,42 +25,22 @@ function hideLoading() {
 }
 
 /**
- * Loads a script dynamically and returns a promise that resolves when the script is loaded.
+ * Ensures that the ffmpeg worker is loaded.
  * @private
- * @param {string} src - The URL of the script to load.
- * @returns {Promise<void>} A promise that resolves when the script is loaded.
- */
-function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.crossOrigin = 'anonymous';
-        script.onload = resolve;
-        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-        document.head.appendChild(script);
-    });
-}
-
-/**
- * Ensures that the ffmpeg.wasm instance is created and configured.
- * @private
- * @returns {Promise<Object>} A promise that resolves with the configured ffmpeg instance.
+ * @returns {Promise<Object>} A promise that resolves with the worker.
  */
 async function ensureFFmpeg() {
-    if (!window.FFmpegWASM) {
-        await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js');
-    }
-
-    if (!window.FFmpegWASM) {
-        throw new Error('Failed to load ffmpeg library');
-    }
-
-    const { FFmpeg } = FFmpegWASM;
-    const ffmpeg = new FFmpeg();
-
-    await ffmpeg.load();
-
-    return { ffmpeg };
+    // ffmpeg.js worker is loaded directly, no script loading needed as it's a worker script
+    const worker = new Worker('https://cdn.jsdelivr.net/npm/ffmpeg.js@4.2.9003/ffmpeg-worker-webm.js');
+    return new Promise((resolve, reject) => {
+        worker.onmessage = function(e) {
+            const msg = e.data;
+            if (msg.type === 'ready') {
+                resolve({ worker });
+            }
+        };
+        worker.onerror = reject;
+    });
 }
 
 /**
@@ -87,25 +65,57 @@ async function convertWebmToWebp(webmFile, options = {}) {
     try {
         showLoading();
 
-        const { ffmpeg } = await ensureFFmpeg();
+        const { worker } = await ensureFFmpeg();
 
-        // Write input file
-        ffmpeg.writeFile('input.webm', new Uint8Array(await webmFile.arrayBuffer()));
+        const inputData = await webmFile.arrayBuffer();
 
-        // Convert to animated WebP
-        await ffmpeg.exec([
-            '-i', 'input.webm',
-            '-vf', `scale=${scaleWidth}:-1:flags=lanczos,fps=${fps}`,
-            '-loop', '0',
-            '-an',
-            '-lossless', '0',
-            '-quality', `${quality}`,
-            'output.webp'
-        ]);
+        return new Promise((resolve, reject) => {
+            worker.onmessage = function(e) {
+                const msg = e.data;
+                switch (msg.type) {
+                    case 'stdout':
+                        console.log('FFmpeg stdout:', msg.data);
+                        break;
+                    case 'stderr':
+                        console.error('FFmpeg stderr:', msg.data);
+                        break;
+                    case 'done':
+                        const result = msg.data;
+                        const output = result.MEMFS.find(f => f.name === 'output.webp');
+                        if (!output) {
+                            reject(new Error('Output file not found'));
+                            return;
+                        }
+                        resolve(new Blob([output.data], { type: 'image/webp' }));
+                        break;
+                    case 'exit':
+                        if (msg.data !== 0) {
+                            reject(new Error(`FFmpeg exited with code ${msg.data}`));
+                        }
+                        break;
+                    case 'error':
+                        reject(new Error(msg.data));
+                        break;
+                    case 'abort':
+                        reject(new Error('FFmpeg aborted: ' + msg.data));
+                        break;
+                }
+            };
 
-        // Read output
-        const output = await ffmpeg.readFile('output.webp');
-        return new Blob([output], { type: 'image/webp' });
+            worker.postMessage({
+                type: 'run',
+                MEMFS: [{ name: 'input.webm', data: inputData }],
+                arguments: [
+                    '-i', 'input.webm',
+                    '-vf', `scale=${scaleWidth}:-1:flags=lanczos,fps=${fps}`,
+                    '-loop', '0',
+                    '-an',
+                    '-lossless', '0',
+                    '-quality', `${quality}`,
+                    'output.webp'
+                ]
+            });
+        });
     } catch (error) {
         console.error('Conversion failed:', error);
         throw error;
