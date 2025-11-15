@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebM to Animated WebP Converter</title>
+  <style>
+    body { font-family:sans-serif; background:#f6f8fa; color:#262b35; display:flex; align-items:center; justify-content:center; height:100vh; margin:0;}
+    .container { background:#fff; border-radius:12px; box-shadow:0 4px 18px #0001; padding:2rem 2.5rem; text-align:center; min-width:350px;}
+    h1 {font-size:1.2em; margin:0 0 1.6em;}
+    input[type="file"] {margin:1.5em 0 1em;}
+    button {
+      background: #3498db; color:#fff; border:none; border-radius:6px;
+      padding:10px 22px; font-size:1em; font-weight:600; cursor:pointer; box-shadow:0 1px 3px #0001;
+      transition:background 0.2s;
+    }
+    button:hover, button:active {background:#176ab5;}
+    #progress {margin-top:17px;margin-bottom:5px; font-size:0.98em;}
+    #downloadLink {display:block; margin:18px 0 7px 0; color:#27ae60; font-weight:bold; text-decoration:underline;}
+    #webpPreview {max-width:100%; max-height:170px; display:none; margin:0 auto;}
+    #loadingIndicator {
+      display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.70); color:#fff; padding:1.7em 2.5em; border-radius:11px; text-align:center; z-index:999;
+    }
+    #loadingIndicator.show{display:block;}
+    #loadingIndicator .spinner { width:40px; height:40px; border:4px solid #f3f3f3; border-top:4px solid #3498db; border-radius:50%; animation:spin 1s linear infinite; margin:10px auto;}
+    @keyframes spin {0% {transform:rotate(0deg);} 100% {transform:rotate(360deg);}}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>WebM to Animated WebP Converter</h1>
+    <input type="file" id="webmInput" accept="video/webm">
+    <button id="convertBtn">Convert to Animated WebP</button>
+    <div id="progress"></div>
+    <a id="downloadLink" style="display:none;">Download Animated WebP</a>
+    <img id="webpPreview" alt="Animated WebP Preview"/>
+  </div>
+  <div id="loadingIndicator"><div class="spinner"></div><p>Loading ffmpeg-core and assets...<br>First run may take ~20MB download.</p></div>
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    let userFile = null;
+    let fileName = "";
+
+    document.getElementById('webmInput').addEventListener('change', e => {
+      userFile = e.target.files[0] || null;
+      fileName = userFile ? userFile.name.replace(/\.webm$/i, '') : '';
+      document.getElementById('downloadLink').style.display = "none";
+      document.getElementById('webpPreview').style.display = "none";
+      document.getElementById('progress').textContent = "";
+    });
+
+    document.getElementById('convertBtn').onclick = async function() {
+      if (!userFile) {
+        alert('Please select a WebM video.');
+        return;
+      }
+      document.getElementById('loadingIndicator').classList.add('show');
+      document.getElementById('progress').textContent = "Preparing ffmpeg...";
+
+      const ffmpeg = createFFmpeg({ log: true });
+
+      ffmpeg.setProgress(({ ratio }) => {
+        document.getElementById('progress').textContent = `Processing: ${(ratio*100).toFixed(0)}%`;
+      });
+
+      if (!ffmpeg.isLoaded()) {
+        await ffmpeg.load();
+      }
+
+      document.getElementById('progress').textContent = "Uploading video to browser ffmpeg...";
+      ffmpeg.FS('writeFile', 'input.webm', await fetchFile(userFile));
+
+      document.getElementById('progress').textContent = "Converting to animated WebP (this may take some time)...";
+      await ffmpeg.run(
+        "-i", "input.webm",
+        "-vf", "scale=600:-1:flags=lanczos,fps=10",
+        "-loop", "0",
+        "-an",
+        "-lossless", "0",
+        "-quality", "80",
+        "output.webp"
+      );
+
+      const webpData = ffmpeg.FS('readFile', 'output.webp');
+      const webpBlob = new Blob([webpData.buffer], { type: "image/webp" });
+      const url = URL.createObjectURL(webpBlob);
+      document.getElementById('progress').textContent = "Done! Download or preview below:";
+      const link = document.getElementById('downloadLink');
+      link.href = url;
+      link.download = fileName ? (fileName + '.webp') : 'animation.webp';
+      link.style.display = 'block';
+      link.textContent = "Download Animated WebP";
+      const img = document.getElementById('webpPreview');
+      img.src = url;
+      img.style.display = 'block';
+      document.getElementById('loadingIndicator').classList.remove('show');
+    };
+  </script>
+</body>
+</html>
